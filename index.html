@@ -38,7 +38,6 @@ h1{margin:0;font-size:42px;line-height:1.05;font-weight:800;letter-spacing:-.03e
 .total{font-size:40px;font-weight:900;color:var(--accent-dark);line-height:1;margin-top:6px}
 .hint{margin-top:10px;padding:10px 12px;border-radius:12px;background:#f3f8f4;font-size:13px;color:#35523f;border:1px solid #dce9df}
 .err{background:#fff2f0;border-color:#efc5bf;color:#7d2d25}
-.note{font-size:12px;color:#a94442;line-height:1.35;margin-top:8px}
 @media (max-width:980px){.grid{grid-template-columns:1fr}h1{font-size:34px}}
 @media (max-width:560px){
   body{padding:10px 8px}
@@ -64,11 +63,10 @@ h1{margin:0;font-size:42px;line-height:1.05;font-weight:800;letter-spacing:-.03e
 </section>
 
 <script>
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwtsC1vAfV1H3iCo1gYfRCTHqULiWlPfft_lyoqs62L_bL4zr2a7XhjRJpR3rMeUVPstw/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxPFXTotTNufretzoJi1SdH9iYv_bw7qOG520fF0jql0o1R26LPjaO_8_Mdg0XuBJ__uA/exec';
 
 const APP = {
   quantities:[50,100,200,300,500,1000],
-  colorOrder:['white','black','blue','red','request'],
   colorMeta:{
     white:{label:'Белый',hex:'#ffffff',className:'white'},
     black:{label:'Чёрный',hex:'#111111'},
@@ -87,8 +85,8 @@ class Calc {
     this.loaded = false;
     this.error = '';
     this.rows = [];
-    this.catalog = {products:[], materialsByProduct:{}, densitiesByKey:{}, colorsByKey:{}};
-    this.s = {product:'', material:'', density:null, color:'', qty:50};
+    this.catalog = {genders:[], productsByGender:{}, materialsByKey:{}, densitiesByKey:{}, colorsByKey:{}};
+    this.s = {gender:'', product:'', material:'', density:null, color:'', qty:50};
     this.render();
     this.loadData();
   }
@@ -126,6 +124,8 @@ class Calc {
 
   normalizeItems(items){
     return (Array.isArray(items) ? items : []).map(row => ({
+      gender_id: String(row.gender_id || '').trim(),
+      gender_label: String(row.gender_label || '').trim(),
       product_id: String(row.product_id || '').trim(),
       product_label: String(row.product_label || '').trim(),
       material_id: String(row.material_id || '').trim(),
@@ -135,76 +135,62 @@ class Calc {
       color_label: String(row.color_label || '').trim(),
       unit_price: Number(row.unit_price || 0)
     })).filter(row =>
-      row.product_id && row.material_id && row.color_id && row.unit_price > 0
+      row.gender_id && row.product_id && row.material_id && row.color_id && row.unit_price > 0
     );
   }
 
   buildCatalog(rows){
-    const productsMap = new Map();
-    const materialsByProduct = {};
+    const gendersMap = new Map();
+    const productsByGender = {};
+    const materialsByKey = {};
     const densitiesByKey = {};
     const colorsByKey = {};
 
     rows.forEach(row => {
-      if (!productsMap.has(row.product_id)) {
-        productsMap.set(row.product_id, {id: row.product_id, label: row.product_label || row.product_id});
+      if (!gendersMap.has(row.gender_id)) {
+        gendersMap.set(row.gender_id, {id: row.gender_id, label: row.gender_label || row.gender_id});
       }
 
-      if (!materialsByProduct[row.product_id]) materialsByProduct[row.product_id] = new Map();
-      if (!materialsByProduct[row.product_id].has(row.material_id)) {
-        materialsByProduct[row.product_id].set(row.material_id, {id: row.material_id, label: row.material_label || row.material_id});
+      if (!productsByGender[row.gender_id]) productsByGender[row.gender_id] = new Map();
+      if (!productsByGender[row.gender_id].has(row.product_id)) {
+        productsByGender[row.gender_id].set(row.product_id, {id: row.product_id, label: row.product_label || row.product_id});
       }
 
-      const densKey = row.product_id + '|' + row.material_id;
-      if (!densitiesByKey[densKey]) densitiesByKey[densKey] = new Set();
-      if (row.density != null && !Number.isNaN(row.density)) densitiesByKey[densKey].add(Number(row.density));
+      const materialsKey = row.gender_id + '|' + row.product_id;
+      if (!materialsByKey[materialsKey]) materialsByKey[materialsKey] = new Map();
+      if (!materialsByKey[materialsKey].has(row.material_id)) {
+        materialsByKey[materialsKey].set(row.material_id, {id: row.material_id, label: row.material_label || row.material_id});
+      }
 
-      const colorKey = row.product_id + '|' + row.material_id + '|' + (row.density == null ? 'nodensity' : row.density);
+      const densityKey = row.gender_id + '|' + row.product_id + '|' + row.material_id;
+      if (!densitiesByKey[densityKey]) densitiesByKey[densityKey] = new Set();
+      if (row.density != null) densitiesByKey[densityKey].add(Number(row.density));
+
+      const colorKey = row.gender_id + '|' + row.product_id + '|' + row.material_id + '|' + (row.density == null ? '' : row.density);
       if (!colorsByKey[colorKey]) colorsByKey[colorKey] = new Map();
-      if (!colorsByKey[colorKey].has(row.color_id) && APP.colorMeta[row.color_id]) {
+      if (!colorsByKey[colorKey].has(row.color_id)) {
         colorsByKey[colorKey].set(row.color_id, {
           id: row.color_id,
-          label: row.color_label || APP.colorMeta[row.color_id].label || row.color_id,
+          label: row.color_label || (APP.colorMeta[row.color_id] ? APP.colorMeta[row.color_id].label : row.color_id),
           ...(APP.colorMeta[row.color_id] || {})
         });
       }
     });
 
-    const orderedColors = obj => Object.fromEntries(
-      Object.entries(obj).map(([k, m]) => [
-        k,
-        APP.colorOrder
-          .map(colorId => m.get(colorId))
-          .filter(Boolean)
-      ])
-    );
-
     return {
-      products: Array.from(productsMap.values()),
-      materialsByProduct: Object.fromEntries(
-        Object.entries(materialsByProduct).map(([k, v]) => [k, Array.from(v.values())])
-      ),
-      densitiesByKey: Object.fromEntries(
-        Object.entries(densitiesByKey).map(([k, v]) => [k, Array.from(v).sort((a,b) => a - b)])
-      ),
-      colorsByKey: orderedColors(colorsByKey)
+      genders: Array.from(gendersMap.values()),
+      productsByGender: Object.fromEntries(Object.entries(productsByGender).map(([k, v]) => [k, Array.from(v.values())])),
+      materialsByKey: Object.fromEntries(Object.entries(materialsByKey).map(([k, v]) => [k, Array.from(v.values())])),
+      densitiesByKey: Object.fromEntries(Object.entries(densitiesByKey).map(([k, v]) => [k, Array.from(v).sort((a,b) => b - a)])),
+      colorsByKey: Object.fromEntries(Object.entries(colorsByKey).map(([k, v]) => [k, Array.from(v.values())]))
     };
   }
 
-  getProducts(){ return this.catalog.products || []; }
-  getMaterials(){ return this.catalog.materialsByProduct[this.s.product] || []; }
-  getDensities(){ return this.catalog.densitiesByKey[this.s.product + '|' + this.s.material] || []; }
-
-  getColors(){
-    const densityKey = this.requiresDensity() ? this.s.density : 'nodensity';
-    return this.catalog.colorsByKey[this.s.product + '|' + this.s.material + '|' + densityKey] || [];
-  }
-
-  requiresDensity(){
-    return this.getDensities().length > 0;
-  }
-
   ensureValidState(){
+    const genders = this.getGenders();
+    if (this.s.gender && !genders.find(x => x.id === this.s.gender)) this.s.gender = '';
+    if (!this.s.gender && genders.length) this.s.gender = genders[0].id;
+
     const products = this.getProducts();
     if (this.s.product && !products.find(x => x.id === this.s.product)) this.s.product = '';
     if (!this.s.product && products.length) this.s.product = products[0].id;
@@ -215,7 +201,8 @@ class Calc {
 
     const densities = this.getDensities();
     if (densities.length) {
-      if (this.s.density == null || !densities.includes(Number(this.s.density))) this.s.density = densities[0];
+      if (this.s.density && !densities.includes(Number(this.s.density))) this.s.density = null;
+      if (!this.s.density) this.s.density = densities[0];
     } else {
       this.s.density = null;
     }
@@ -255,11 +242,21 @@ class Calc {
     }
   }
 
+  getGenders(){ return this.catalog.genders || []; }
+  getProducts(){ return this.catalog.productsByGender[this.s.gender] || []; }
+  getMaterials(){ return this.catalog.materialsByKey[this.s.gender + '|' + this.s.product] || []; }
+  getDensities(){ return this.catalog.densitiesByKey[this.s.gender + '|' + this.s.product + '|' + this.s.material] || []; }
+  getColors(){
+    const densityPart = this.getDensities().length ? this.s.density : '';
+    return this.catalog.colorsByKey[this.s.gender + '|' + this.s.product + '|' + this.s.material + '|' + densityPart] || [];
+  }
+
   findRow(){
     return this.rows.find(row =>
+      row.gender_id === this.s.gender &&
       row.product_id === this.s.product &&
       row.material_id === this.s.material &&
-      (row.density == null ? null : Number(row.density)) === (this.s.density == null ? null : Number(this.s.density)) &&
+      (row.density == null ? null : Number(row.density)) === (this.getDensities().length ? Number(this.s.density) : null) &&
       row.color_id === this.s.color
     ) || null;
   }
@@ -284,41 +281,49 @@ class Calc {
   render(){
     this.ensureValidState();
 
+    const genders = this.getGenders();
     const products = this.getProducts();
     const materials = this.getMaterials();
     const densities = this.getDensities();
     const colors = this.getColors();
 
     const c = this.calc();
+    const gender = genders.find(x => x.id === this.s.gender);
     const product = products.find(x => x.id === this.s.product);
     const material = materials.find(x => x.id === this.s.material);
     const color = colors.find(x => x.id === this.s.color);
-    const showDensity = densities.length > 0;
+
     const missingPrice = this.loaded && !c.unitPrice;
+    const showDensity = this.s.product === 'longsleeve' && densities.length > 0;
 
     this.root.innerHTML = `
       <div class="panel">
         <div class="step">
+          <h3>Выберите пол</h3>
+          <div class="seg">${genders.map(i => this.btn(i.label, this.s.gender === i.id, 'gender', i.id)).join('')}</div>
+        </div>
+
+        <div class="step ${this.s.gender ? '' : 'is-hidden'}">
           <h3>Изделие</h3>
           <div class="seg">${products.map(i => this.btn(i.label, this.s.product === i.id, 'product', i.id)).join('')}</div>
         </div>
 
-        <div class="step ${this.s.product ? '' : 'is-hidden'}">
+        <div class="step ${(this.s.gender && this.s.product) ? '' : 'is-hidden'}">
           <h3>Материал</h3>
           <div class="seg">${materials.map(i => this.btn(i.label, this.s.material === i.id, 'material', i.id)).join('')}</div>
         </div>
 
-        <div class="step ${(this.s.product && this.s.material && showDensity) ? '' : 'is-hidden'}">
+        <div class="step ${(this.s.gender && this.s.product && showDensity) ? '' : 'is-hidden'}">
           <h3>Плотность</h3>
           <div class="dim-grid">${densities.map(i => this.btn(i + ' г/м²', Number(this.s.density) === Number(i), 'density', i)).join('')}</div>
         </div>
 
-        <div class="step ${(this.s.product && this.s.material && (!showDensity || this.s.density)) ? '' : 'is-hidden'}">
+        <div class="step ${(this.s.gender && this.s.product && this.s.material && (!showDensity || this.s.density)) ? '' : 'is-hidden'}">
           <h3>Цвет изделия</h3>
           ${!this.loaded ? '<div class="hint">Загружаю цены из Google Sheets...</div>' : `<div class="swatches">${colors.map(c => this.colorSwatch(c)).join('')}</div>`}
         </div>
 
-        <div class="step ${(this.s.product && this.s.material && (!showDensity || this.s.density) && this.s.color) ? '' : 'is-hidden'}">
+        <div class="step ${(this.s.gender && this.s.product && this.s.material && (!showDensity || this.s.density) && this.s.color) ? '' : 'is-hidden'}">
           <h3>Тираж</h3>
           <div class="seg">${APP.quantities.map(i => this.btn(i + ' шт.', Number(this.s.qty) === Number(i), 'qty', i)).join('')}</div>
         </div>
@@ -329,6 +334,7 @@ class Calc {
 
         <div class="card">
           <div class="badges">
+            ${gender ? `<div class="badge">${gender.label}</div>` : ''}
             ${product ? `<div class="badge">${product.label}</div>` : ''}
             ${material ? `<div class="badge">${material.label}</div>` : ''}
             ${showDensity && this.s.density ? `<div class="badge">${this.s.density} г/м²</div>` : ''}
@@ -345,14 +351,15 @@ class Calc {
             <strong>${n0(this.s.qty)} шт.</strong>
           </div>
 
-          ${product && product.id === 'longsleeve' ? `<div class="hint">Плотность выбирается только для лонгслива.</div>` : ''}
           ${missingPrice ? `<div class="hint err" style="margin-top:12px">Для выбранных параметров цена не найдена в таблице.</div>` : ''}
         </div>
 
         <div class="card totalcard">
           <h3>Итоговая стоимость</h3>
           <div class="total">${money(c.total)}</div>
-          <div class="note">*Предварительная стоимость. Для точного расчёта уточняйте у менеджера.</div>
+          <div style="color:#a94442;font-size:12px;margin-top:6px;line-height:1.3;">
+            *Предварительная стоимость. Для точного расчёта уточняйте у менеджера.
+          </div>
         </div>
       </div>
     `;
@@ -362,6 +369,13 @@ class Calc {
       let v = el.dataset.v;
       if (a === 'density' || a === 'qty') v = Number(v);
 
+      if (a === 'gender') {
+        this.s.gender = v;
+        this.s.product = '';
+        this.s.material = '';
+        this.s.density = null;
+        this.s.color = '';
+      }
       if (a === 'product') {
         this.s.product = v;
         this.s.material = '';
@@ -377,8 +391,12 @@ class Calc {
         this.s.density = v;
         this.s.color = '';
       }
-      if (a === 'color') this.s.color = v;
-      if (a === 'qty') this.s.qty = v;
+      if (a === 'color') {
+        this.s.color = v;
+      }
+      if (a === 'qty') {
+        this.s.qty = v;
+      }
 
       this.render();
     }));
