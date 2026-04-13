@@ -306,6 +306,28 @@ class Calc{
             <div class="badge">${n0(this.s.qty)} шт.</div>
           </div>
 
+          <div class="row">
+            <span>Цена за 1 шт.</span>
+            <strong>${money(c.unitPrice)}</strong>
+          </div>
+          <div class="row">
+            <span>Скидка за 1 шт.</span>
+            <strong>- ${money(c.discountPerUnit)}</strong>
+          </div>
+          <div class="row">
+            <span>Цена за 1 шт. со скидкой</span>
+            <strong>${money(c.finalUnitPrice)}</strong>
+          </div>
+          <div class="row">
+            <span>Тираж</span>
+            <strong>${n0(this.s.qty)} шт.</strong>
+          </div>
+          <div class="row">
+            <span>Общая скидка</span>
+            <strong>- ${money(c.totalDiscount)}</strong>
+          </div>
+          ${this.loaded && !c.unitPrice ? `<div class="hint err" style="margin-top:12px">Для выбранных параметров цена не найдена в таблице.</div>` : ''}
+        </div>
 
         <div class="card totalcard">
           <h3>Итоговая стоимость</h3>
